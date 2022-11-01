@@ -1,0 +1,89 @@
+<!--
+Beware of backend developers:
+This project is fully done by the backend developer who never touched HTML/CS/JS
+in his entire life, so there will bugs, and the code looks terrible, I don't
+care. 
+-->
+<script>
+  var fileId;
+
+  function _(el) {
+    return document.getElementById(el);
+  }
+  
+  function uploadFile() {
+    var file = _("uploadData").files[0];
+    // alert(file.name+" | "+file.size+" | "+file.type);
+    var formdata = new FormData();
+    formdata.append("uploadData", file);
+    var req = new XMLHttpRequest();
+    req.upload.addEventListener("progress", progressHandler, false);
+    req.addEventListener("load", completeHandler, false);
+    req.addEventListener("error", errorHandler, false);
+    req.addEventListener("abort", abortHandler, false);
+    req.onreadystatechange = () => {
+        if (req.readyState === 4) {
+            console.log(req.response);
+            checkStatus(JSON.parse(req.responseText).id)
+        }
+    };
+    req.open("POST", "/HtmlConverter/Convert");
+    //use file_upload_parser.php from above url
+    req.send(formdata);
+  }
+  
+  function progressHandler(event) {
+    _("loaded_n_total").innerHTML = "Uploaded " + event.loaded + " bytes of " + event.total;
+    var percent = (event.loaded / event.total) * 33;
+    _("progressBar").value = Math.round(percent);
+    _("status").innerHTML = Math.round(percent) + "% uploaded... please wait";
+  }
+  
+  function completeHandler(event) {
+    _("status").innerHTML = "Upload Completed";
+    _("progressBar").value = 33; //wil clear progress bar after successful upload
+  }
+  
+  function errorHandler(event) {
+    _("status").innerHTML = "Upload Failed";
+  }
+  
+  function abortHandler(event) {
+    _("status").innerHTML = "Upload Aborted";
+  }
+
+  function checkStatus(id) {
+    fileId = id;
+
+    var req = new XMLHttpRequest();
+    req.addEventListener("readystatechange", () => {
+        if (req.readyState === 4) {
+            var status = JSON.parse(req.responseText).status;
+            if (status === "Executing")
+                _("progressBar").value = 66;
+            if (status === "Queued")
+                _("progressBar").value = 40;
+
+            if (status != "Completed") {
+                setTimeout(() => { checkStatus(id); }, 300);
+            }
+            else
+            {
+                _("progressBar").value = 100;
+                _("download_btn").hidden = false;
+                _("download_btn").href = "/HtmlConverter/TryGetConvertedFile/" + fileId;
+            }
+        }
+    }, false);
+
+    req.open("GET", "/HtmlConverter/ConversionStatus/" + id, true);
+    req.send();
+  }
+</script>
+<form id="upload_form" enctype="multipart/form-data" method="post">
+    <input type="file" name="file1" id="uploadData" onchange="uploadFile()"><br>
+    <progress id="progressBar" value="0" max="100" style="width:300px;"></progress>
+    <h3 id="status"></h3>
+    <p id="loaded_n_total"></p>
+</form>
+<a class="button" download id="download_btn" hidden>Download</a>
